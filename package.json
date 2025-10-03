@@ -1,0 +1,12 @@
+{
+  "name": "medical-ai-frontend",
+  "version": "1.0.0",
+  "description": "Frontend for Medical Image AI Assistant",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'Static site - no build needed'",
+    "start": "vercel dev"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

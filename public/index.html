@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medical Image AI Assistant - Multilingual</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 40px;
+            max-width: 900px;
+            width: 100%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 1.1em;
+            margin-bottom: 20px;
+        }
+
+        /* API Status */
+        .api-status {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 10px;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+
+        .api-status.connected {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+        }
+
+        .api-status.disconnected {
+            background: linear-gradient(135deg, #dc3545, #c82333);
+            color: white;
+        }
+
+        /* Language Selector */
+        .language-selector {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .language-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .language-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .language-btn.active {
+            background: linear-gradient(135deg, #764ba2, #667eea);
+            transform: scale(1.05);
+        }
+
+        .upload-section {
+            border: 3px dashed #ccc;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 30px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .upload-section:hover {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        .upload-section.dragover {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 4em;
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+
+        .upload-text {
+            font-size: 1.2em;
+            color: #555;
+            margin-bottom: 15px;
+        }
+
+        .upload-subtext {
+            color: #888;
+            font-size: 0.9em;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .question-section {
+            margin-bottom: 30px;
+        }
+
+        .question-label {
+            font-size: 1.1em;
+            color: #333;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        .question-input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 1em;
+            transition: border-color 0.3s ease;
+            resize: vertical;
+            min-height: 50px;
+        }
+
+        .question-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 10px rgba(102, 126, 234, 0.1);
+        }
+
+        .quick-questions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .quick-question-btn {
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: #555;
+        }
+
+        .quick-question-btn:hover {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .analyze-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 30px;
+        }
+
+        .analyze-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .analyze-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .result {
+            display: none;
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 15px;
+            padding: 25px;
+            margin-top: 20px;
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .confidence-badge {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+
+        .result-text {
+            color: #333;
+            line-height: 1.6;
+            font-size: 1em;
+            white-space: pre-wrap;
+        }
+
+        .preview-image {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 10px;
+            margin: 20px 0;
+            display: none;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .error {
+            background: linear-gradient(135deg, #dc3545, #c82333);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+                margin: 10px;
+            }
+
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .language-selector {
+                justify-content: center;
+            }
+
+            .quick-questions {
+                justify-content: center;
+            }
+
+            .result-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+
+        /* Animations */
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏥 Medical Image AI</h1>
+            <p>Multilingual AI-powered medical image analysis</p>
+        </div>
+
+        <!-- API Status -->
+        <div id="api-status" class="api-status disconnected">
+            🔌 Connecting to AI backend...
+        </div>
+
+        <!-- Language Selector -->
+        <div class="language-selector">
+            <button class="language-btn active" data-lang="en">🇺🇸 English</button>
+            <button class="language-btn" data-lang="es">🇪🇸 Español</button>
+            <button class="language-btn" data-lang="fr">🇫🇷 Français</button>
+            <button class="language-btn" data-lang="de">🇩🇪 Deutsch</button>
+            <button class="language-btn" data-lang="it">🇮🇹 Italiano</button>
+            <button class="language-btn" data-lang="pt">🇵🇹 Português</button>
+            <button class="language-btn" data-lang="ru">🇷🇺 Русский</button>
+            <button class="language-btn" data-lang="zh">🇨🇳 中文</button>
+            <button class="language-btn" data-lang="ja">🇯🇵 日本語</button>
+            <button class="language-btn" data-lang="ko">🇰🇷 한국어</button>
+            <button class="language-btn" data-lang="ar">🇸🇦 العربية</button>
+            <button class="language-btn" data-lang="hi">🇮🇳 हिन्दी</button>
+        </div>
+
+        <!-- Upload Section -->
+        <div class="upload-section" id="upload-section">
+            <div class="upload-icon">📄</div>
+            <div class="upload-text">Drop your medical image here or click to browse</div>
+            <div class="upload-subtext">Supports: JPG, PNG, GIF, BMP, TIFF (Max 16MB)</div>
+            <input type="file" id="file-input" class="file-input" accept="image/*">
+        </div>
+
+        <img id="preview-image" class="preview-image" alt="Preview">
+
+        <!-- Question Section -->
+        <div class="question-section">
+            <label class="question-label">Ask a specific question about the medical image:</label>
+            <textarea id="question-input" class="question-input" 
+                placeholder="Example: Is this chest X-ray normal? Are there any signs of pneumonia?"></textarea>
+            
+            <div class="quick-questions" id="quick-questions">
+                <button class="quick-question-btn" data-question="Is this chest X-ray normal?">🫁 Normal X-ray?</button>
+                <button class="quick-question-btn" data-question="Are there any signs of pneumonia?">🦠 Pneumonia signs?</button>
+                <button class="quick-question-btn" data-question="What abnormalities do you see?">🔍 Find abnormalities</button>
+                <button class="quick-question-btn" data-question="Describe what you observe in detail">📝 Detailed analysis</button>
+                <button class="quick-question-btn" data-question="What is the overall condition?">⚕️ Overall condition</button>
+            </div>
+        </div>
+
+        <button id="analyze-btn" class="analyze-btn" disabled>
+            🤖 Analyze Medical Image
+        </button>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <div>AI is analyzing your medical image...</div>
+        </div>
+
+        <div id="result" class="result">
+            <div class="result-header">
+                <strong>🤖 AI Analysis Result</strong>
+                <span id="confidence-badge" class="confidence-badge"></span>
+            </div>
+            <div id="result-text" class="result-text"></div>
+        </div>
+
+        <div id="error" class="error"></div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE_URL = 'https://your-backend-api.onrender.com'; // Change this to your backend URL
+        
+        let selectedFile = null;
+        let currentLanguage = 'en';
+
+        // Check API status on load
+        checkApiStatus();
+
+        // Language switching
+        document.querySelectorAll('.language-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.language-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                currentLanguage = this.dataset.lang;
+                updateQuickQuestions();
+            });
+        });
+
+        // Quick questions for different languages
+        const quickQuestions = {
+            'en': [
+                {text: "🫁 Normal X-ray?", question: "Is this chest X-ray normal?"},
+                {text: "🦠 Pneumonia signs?", question: "Are there any signs of pneumonia?"},
+                {text: "🔍 Find abnormalities", question: "What abnormalities do you see?"},
+                {text: "📝 Detailed analysis", question: "Describe what you observe in detail"},
+                {text: "⚕️ Overall condition", question: "What is the overall condition?"}
+            ],
+            'es': [
+                {text: "🫁 ¿Radiografía normal?", question: "¿Esta radiografía de tórax es normal?"},
+                {text: "🦠 ¿Signos de neumonía?", question: "¿Hay signos de neumonía?"},
+                {text: "🔍 Encontrar anomalías", question: "¿Qué anomalías observas?"},
+                {text: "📝 Análisis detallado", question: "Describe lo que observas en detalle"},
+                {text: "⚕️ Estado general", question: "¿Cuál es el estado general?"}
+            ],
+            'fr': [
+                {text: "🫁 Radio normale?", question: "Cette radiographie thoracique est-elle normale?"},
+                {text: "🦠 Signes de pneumonie?", question: "Y a-t-il des signes de pneumonie?"},
+                {text: "🔍 Trouver anomalies", question: "Quelles anomalies voyez-vous?"},
+                {text: "📝 Analyse détaillée", question: "Décrivez ce que vous observez en détail"},
+                {text: "⚕️ État général", question: "Quel est l'état général?"}
+            ],
+            'de': [
+                {text: "🫁 Normales Röntgen?", question: "Ist dieses Thorax-Röntgenbild normal?"},
+                {text: "🦠 Pneumonie-Zeichen?", question: "Gibt es Anzeichen einer Pneumonie?"},
+                {text: "🔍 Anomalien finden", question: "Welche Anomalien sehen Sie?"},
+                {text: "📝 Detaillierte Analyse", question: "Beschreiben Sie im Detail, was Sie beobachten"},
+                {text: "⚕️ Allgemeinzustand", question: "Wie ist der Allgemeinzustand?"}
+            ]
+        };
+
+        function updateQuickQuestions() {
+            const container = document.getElementById('quick-questions');
+            const questions = quickQuestions[currentLanguage] || quickQuestions['en'];
+            
+            container.innerHTML = '';
+            questions.forEach(q => {
+                const btn = document.createElement('button');
+                btn.className = 'quick-question-btn';
+                btn.textContent = q.text;
+                btn.dataset.question = q.question;
+                btn.addEventListener('click', function() {
+                    document.getElementById('question-input').value = this.dataset.question;
+                });
+                container.appendChild(btn);
+            });
+        }
+
+        async function checkApiStatus() {
+            const statusDiv = document.getElementById('api-status');
+            try {
+                const response = await fetch(`${API_BASE_URL}/health`);
+                if (response.ok) {
+                    statusDiv.className = 'api-status connected';
+                    statusDiv.innerHTML = '✅ AI Backend Connected';
+                } else {
+                    throw new Error('Backend not responding');
+                }
+            } catch (error) {
+                statusDiv.className = 'api-status disconnected';
+                statusDiv.innerHTML = '❌ AI Backend Disconnected - Please check backend server';
+            }
+        }
+
+        // File upload handling
+        const uploadSection = document.getElementById('upload-section');
+        const fileInput = document.getElementById('file-input');
+        const previewImage = document.getElementById('preview-image');
+        const analyzeBtn = document.getElementById('analyze-btn');
+
+        uploadSection.addEventListener('click', () => fileInput.click());
+
+        uploadSection.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadSection.classList.add('dragover');
+        });
+
+        uploadSection.addEventListener('dragleave', () => {
+            uploadSection.classList.remove('dragover');
+        });
+
+        uploadSection.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadSection.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            selectedFile = file;
+            
+            // Show preview
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                previewImage.src = e.target.result;
+                previewImage.style.display = 'block';
+                previewImage.classList.add('fade-in');
+            };
+            reader.readAsDataURL(file);
+            
+            // Enable analyze button
+            analyzeBtn.disabled = false;
+            analyzeBtn.classList.add('pulse');
+        }
+
+        // Quick question buttons
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('quick-question-btn')) {
+                document.getElementById('question-input').value = e.target.dataset.question;
+            }
+        });
+
+        // Analyze button
+        analyzeBtn.addEventListener('click', async function() {
+            if (!selectedFile) {
+                showError('Please select an image first');
+                return;
+            }
+
+            const question = document.getElementById('question-input').value || 'What do you see in this medical image?';
+            
+            // Show loading
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('result').style.display = 'none';
+            document.getElementById('error').style.display = 'none';
+            analyzeBtn.disabled = true;
+
+            try {
+                // Create FormData
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+                formData.append('question', question);
+                formData.append('language', currentLanguage);
+
+                // Send request to backend
+                const response = await fetch(`${API_BASE_URL}/predict`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                document.getElementById('loading').style.display = 'none';
+                analyzeBtn.disabled = false;
+
+                if (data.success) {
+                    showResult(data);
+                } else {
+                    showError(data.error || 'Analysis failed');
+                }
+            } catch (error) {
+                document.getElementById('loading').style.display = 'none';
+                analyzeBtn.disabled = false;
+                showError('Network error: ' + error.message);
+            }
+        });
+
+        function showResult(data) {
+            const resultDiv = document.getElementById('result');
+            const confidenceBadge = document.getElementById('confidence-badge');
+            const resultText = document.getElementById('result-text');
+
+            confidenceBadge.textContent = `Confidence: ${Math.round(data.confidence * 100)}%`;
+            resultText.textContent = data.answer;
+
+            resultDiv.style.display = 'block';
+            resultDiv.classList.add('fade-in');
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            errorDiv.classList.add('fade-in');
+        }
+
+        // Initialize quick questions
+        updateQuickQuestions();
+    </script>
+</body>
+</html>
