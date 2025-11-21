@@ -1,0 +1,1590 @@
+1)Image Filtering and Enhancement: Apply convolution, edge detection (Sobel, Canny), blurring, and histogram equalization to enhance and analyze grayscale/color images.
+
+
+
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+import os
+
+# Path to image
+img_path = 'dog1.jpg'
+
+# --- Read + basic check ---
+image_bgr = cv2.imread(img_path)
+if image_bgr is None:
+    raise FileNotFoundError(f"Cannot read image at '{img_path}'. Check path and filename.")
+
+# Keep both BGR (for OpenCV ops) and RGB (for plotting)
+image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+image_gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)  # read from BGR -> gray
+
+# --- Define kernel (sharpen) ---
+kernel = np.array([[0, -1, 0],
+                   [-1, 5, -1],
+                   [0, -1, 0]], dtype=np.float32)
+
+# Helper to ensure uint8 output for visualization
+def to_uint8(img):
+    if img.dtype == np.uint8:
+        return img
+    img = np.clip(img, 0, 255)
+    return img.astype(np.uint8)
+
+# --- Processing on Grayscale Image ---
+# 1) Convolution (Sharpen) on grayscale
+convolved_gray = cv2.filter2D(image_gray, ddepth=-1, kernel=kernel)
+convolved_gray = to_uint8(convolved_gray)
+
+# 2) Sobel Edge Detection (use convertScaleAbs for proper uint8)
+sobel_x = cv2.Sobel(image_gray, cv2.CV_64F, 1, 0, ksize=3)
+sobel_y = cv2.Sobel(image_gray, cv2.CV_64F, 0, 1, ksize=3)
+sobel_mag = cv2.magnitude(sobel_x, sobel_y)                 # float64
+sobel_combined_gray = cv2.convertScaleAbs(sobel_mag)        # uint8 scaled
+
+# 3) Canny Edge Detection
+canny_edges_gray = cv2.Canny(image_gray, 100, 200)
+
+# 4) Gaussian Blur
+blurred_gray = cv2.GaussianBlur(image_gray, (7, 7), 0)
+
+# 5) Histogram Equalization (grayscale)
+hist_eq_gray = cv2.equalizeHist(image_gray)
+
+# --- Processing on Color (BGR) Image ---
+# 1) Convolution (Sharpen) on each channel by applying filter2D on BGR
+convolved_bgr = cv2.filter2D(image_bgr, ddepth=-1, kernel=kernel)
+convolved_rgb = cv2.cvtColor(to_uint8(convolved_bgr), cv2.COLOR_BGR2RGB)
+
+# 2) Gaussian Blur on color
+blurred_bgr = cv2.GaussianBlur(image_bgr, (7, 7), 0)
+blurred_rgb = cv2.cvtColor(blurred_bgr, cv2.COLOR_BGR2RGB)
+
+# 3) Histogram equalization on luminance (Y) channel using YUV
+image_yuv = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2YUV)
+image_yuv[:, :, 0] = cv2.equalizeHist(image_yuv[:, :, 0])
+hist_eq_bgr = cv2.cvtColor(image_yuv, cv2.COLOR_YUV2BGR)
+hist_eq_rgb = cv2.cvtColor(hist_eq_bgr, cv2.COLOR_BGR2RGB)
+
+# Optional: save outputs (uncomment if you want files)
+out_dir = "outputs"
+os.makedirs(out_dir, exist_ok=True)
+cv2.imwrite(os.path.join(out_dir, "convolved_gray.png"), convolved_gray)
+cv2.imwrite(os.path.join(out_dir, "sobel_gray.png"), sobel_combined_gray)
+cv2.imwrite(os.path.join(out_dir, "canny_gray.png"), canny_edges_gray)
+cv2.imwrite(os.path.join(out_dir, "blurred_gray.png"), blurred_gray)
+cv2.imwrite(os.path.join(out_dir, "hist_eq_gray.png"), hist_eq_gray)
+cv2.imwrite(os.path.join(out_dir, "convolved_rgb.png"), cv2.cvtColor(convolved_rgb, cv2.COLOR_RGB2BGR))
+cv2.imwrite(os.path.join(out_dir, "blurred_rgb.png"), cv2.cvtColor(blurred_rgb, cv2.COLOR_RGB2BGR))
+cv2.imwrite(os.path.join(out_dir, "hist_eq_rgb.png"), cv2.cvtColor(hist_eq_rgb, cv2.COLOR_RGB2BGR))
+
+# --- Plotting ---
+fig, axs = plt.subplots(4, 3, figsize=(16, 18))
+
+# Row 1: Originals
+axs[0, 0].imshow(image_gray, cmap='gray')
+axs[0, 0].set_title("Original Grayscale")
+axs[0, 1].imshow(image_rgb)
+axs[0, 1].set_title("Original RGB")
+axs[0, 2].axis('off')
+
+# Row 2: Convolution (Sharpen)
+axs[1, 0].imshow(convolved_gray, cmap='gray')
+axs[1, 0].set_title("Grayscale Sharpened")
+axs[1, 1].imshow(convolved_rgb)
+axs[1, 1].set_title("RGB Sharpened")
+axs[1, 2].axis('off')
+
+# Row 3: Edge Detection (grayscale)
+axs[2, 0].imshow(sobel_combined_gray, cmap='gray')
+axs[2, 0].set_title("Grayscale Sobel (magnitude)")
+axs[2, 1].imshow(canny_edges_gray, cmap='gray')
+axs[2, 1].set_title("Grayscale Canny")
+axs[2, 2].axis('off')
+
+# Row 4: Blur and Histogram Equalization
+axs[3, 0].imshow(blurred_gray, cmap='gray')
+axs[3, 0].set_title("Grayscale Gaussian Blur")
+axs[3, 1].imshow(blurred_rgb)
+axs[3, 1].set_title("RGB Gaussian Blur")
+axs[3, 2].imshow(hist_eq_rgb)
+axs[3, 2].set_title("RGB Histogram Equalization (YUV -> Y eq)")
+# Turn off axes for all
+for ax in axs.ravel():
+    ax.axis('off')
+
+plt.tight_layout()
+plt.show()
+
+
+
+
+======================================================================================================================
+
+2)Color Space Transformations: Convert images between RGB, HSV, Lab color spaces and extract features for segmentation using k-means clustering.
+
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Load image in RGB
+image_bgr = cv2.imread('dog1.jpg')
+image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+
+# Convert RGB to HSV
+image_hsv = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2HSV)
+
+# Convert RGB to Lab
+image_lab = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2Lab)
+
+# Flatten the image pixels for clustering (convert to float32 for kmeans)
+pixel_values = image_rgb.reshape((-1, 3))
+pixel_values = np.float32(pixel_values)
+
+# Define criteria and apply kmeans clustering
+criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.2)
+k = 4  # number of clusters
+_, labels, centers = cv2.kmeans(pixel_values, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
+
+# Convert centers back to uint8 (color values) and reshape labels to image shape
+centers = np.uint8(centers)
+segmented_image = centers[labels.flatten()]
+segmented_image = segmented_image.reshape(image_rgb.shape)
+
+# Plot results
+fig, axs = plt.subplots(2, 2, figsize=(12, 10))
+
+axs[0, 0].imshow(image_rgb)
+axs[0, 0].set_title('Original RGB Image')
+axs[0, 0].axis('off')
+
+axs[0, 1].imshow(image_hsv)
+axs[0, 1].set_title('HSV Image')
+axs[0, 1].axis('off')
+
+axs[1, 0].imshow(image_lab)
+axs[1, 0].set_title('Lab Image')
+axs[1, 0].axis('off')
+
+axs[1, 1].imshow(segmented_image)
+axs[1, 1].set_title(f'Segmented Image with {k} clusters')
+axs[1, 1].axis('off')
+
+plt.show()
+
+
+
+
+
+========================================================================================================================
+
+3)CNN Basics for Image Classification: Build a simple CNN from scratch using PyTorch to classify images from the CIFAR-10 dataset. Train and evaluate the model.
+
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader, TensorDataset
+
+# -----------------------------
+# 1. Load CIFAR-10 dataset (.npz)
+# -----------------------------
+data = np.load("cifar-10.npz")
+x_train, y_train = data['x_train'], data['y_train']
+x_test, y_test = data['x_test'], data['y_test']
+
+# Normalize and convert to torch tensors
+x_train = torch.tensor(x_train / 255.0, dtype=torch.float32).permute(0, 3, 1, 2)
+x_test = torch.tensor(x_test / 255.0, dtype=torch.float32).permute(0, 3, 1, 2)
+y_train = torch.tensor(y_train, dtype=torch.long).squeeze()
+y_test = torch.tensor(y_test, dtype=torch.long).squeeze()
+
+# Dataloaders
+train_loader = DataLoader(TensorDataset(x_train, y_train), batch_size=64, shuffle=True)
+test_loader = DataLoader(TensorDataset(x_test, y_test), batch_size=64, shuffle=False)
+
+# -----------------------------
+# 2. Define a Simple CNN Model
+# -----------------------------
+class SimpleCNN(nn.Module):
+    def __init__(self):
+        super(SimpleCNN, self).__init__()
+        self.conv_layers = nn.Sequential(
+            nn.Conv2d(3, 16, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2),
+            nn.Conv2d(16, 32, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2)
+        )
+        self.fc_layers = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(32 * 8 * 8, 128),
+            nn.ReLU(),
+            nn.Linear(128, 10)
+        )
+
+    def forward(self, x):
+        x = self.conv_layers(x)
+        x = self.fc_layers(x)
+        return x
+
+# -----------------------------
+# 3. Train and Evaluate
+# -----------------------------
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = SimpleCNN().to(device)
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+# Training
+for epoch in range(5):  # small epochs for simplicity
+    model.train()
+    total_loss = 0
+    for images, labels in train_loader:
+        images, labels = images.to(device), labels.to(device)
+        optimizer.zero_grad()
+        outputs = model(images)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+        total_loss += loss.item()
+    print(f"Epoch [{epoch+1}/5], Loss: {total_loss/len(train_loader):.4f}")
+
+# Evaluation
+model.eval()
+correct, total = 0, 0
+with torch.no_grad():
+    for images, labels in test_loader:
+        images, labels = images.to(device), labels.to(device)
+        outputs = model(images)
+        _, predicted = torch.max(outputs, 1)
+        total += labels.size(0)
+        correct += (predicted == labels).sum().item()
+
+print(f"Test Accuracy: {100 * correct / total:.2f}%")
+
+
+
+==============================================================================================
+
+4)Visualizing CNN Filters and Activations: Visualize learned filters and activation maps for different layers of a trained CNN. Analyze what each filter captures.(dog image, vgg h5 )
+
+#question_4 working
+import tensorflow as tf
+from tensorflow.keras.models import Model
+from tensorflow.keras.applications import VGG16
+from tensorflow.keras.preprocessing import image
+from tensorflow.keras.applications.vgg16 import preprocess_input
+import numpy as np
+import matplotlib.pyplot as plt
+import os
+
+# ===========================
+# CONFIGURATION
+# ===========================
+
+# Option 1: Use weights from default Keras cache directory
+# Place the .h5 file in ~/.keras/models/ (Linux/Mac) or C:\Users\YourName\.keras\models\ (Windows)
+# model = VGG16(weights='imagenet', include_top=False)
+
+# Option 2: Use weights from local file (specify path)
+weights_path = 'vgg16_weights_tf_dim_ordering_tf_kernels_notop.h5'  # Change this to your path
+img_path = 'dog1.jpg'  # Your image file
+layer_name = 'block1_conv1'  # Layer to visualize
+
+# ===========================
+# LOAD MODEL
+# ===========================
+
+print("Loading VGG16 model...")
+try:
+    if os.path.exists(weights_path):
+        # Load from local file
+        model = VGG16(weights=weights_path, include_top=False)
+        print(f"✓ Model loaded successfully from: {weights_path}")
+    else:
+        # Try loading from Keras cache (if weights are in ~/.keras/models/)
+        model = VGG16(weights='imagenet', include_top=False)
+        print("✓ Model loaded successfully from Keras cache")
+except Exception as e:
+    print(f"✗ Error loading model: {e}")
+    print("\nPlease ensure the weights file is either:")
+    print(f"  1. Located at: {weights_path}")
+    print("  2. Or placed in Keras cache directory: ~/.keras/models/")
+    exit()
+
+# ===========================
+# LOAD AND PREPROCESS IMAGE
+# ===========================
+
+print(f"\nLoading image: {img_path}")
+if not os.path.exists(img_path):
+    print(f"✗ Error: Image file '{img_path}' not found!")
+    print("Please ensure 'dog.jpg' exists in the current directory.")
+    exit()
+
+img = image.load_img(img_path, target_size=(224, 224))
+img_array = image.img_to_array(img)
+img_array = np.expand_dims(img_array, axis=0)
+img_array = preprocess_input(img_array)
+print("✓ Image loaded and preprocessed successfully")
+
+# ===========================
+# VISUALIZE ACTIVATIONS
+# ===========================
+
+print(f"\nCreating intermediate model for layer: {layer_name}")
+intermediate_layer_model = Model(
+    inputs=model.input,
+    outputs=model.get_layer(layer_name).output
+)
+
+print("Generating activations...")
+intermediate_output = intermediate_layer_model.predict(img_array, verbose=0)
+activations = intermediate_output[0]
+
+# Plot activation maps
+print("Creating activation map visualization...")
+fig, axes = plt.subplots(4, 4, figsize=(8, 8))
+for i, ax in enumerate(axes.flat):
+    ax.imshow(activations[:, :, i], cmap='viridis')
+    ax.axis('off')
+    ax.set_title(f'Filter {i+1}', fontsize=8)
+plt.suptitle(f'Activations from {layer_name}', fontsize=12, fontweight='bold')
+plt.tight_layout()
+plt.savefig('activation_maps.png', dpi=150, bbox_inches='tight')
+print("✓ Activation maps saved as 'activation_maps.png'")
+plt.close()
+
+# ===========================
+# VISUALIZE FILTERS (WEIGHTS)
+# ===========================
+
+print(f"\nExtracting filters from {layer_name}...")
+filters, biases = model.get_layer(layer_name).get_weights()
+print(f"✓ Filter shape: {filters.shape}")
+print(f"  - Number of filters: {filters.shape[3]}")
+print(f"  - Filter size: {filters.shape[0]}x{filters.shape[1]}")
+print(f"  - Input channels: {filters.shape[2]}")
+
+# Visualize first 6 filters
+n_filters = 6
+print(f"\nVisualizing first {n_filters} filters...")
+fig, axes = plt.subplots(1, n_filters, figsize=(15, 3))
+for i in range(n_filters):
+    f = filters[:, :, :, i]
+    
+    # Normalize filter values to 0-1 for better visualization
+    f_min, f_max = f.min(), f.max()
+    f = (f - f_min) / (f_max - f_min)
+    
+    ax = axes[i]
+    ax.imshow(f)
+    ax.axis('off')
+    ax.set_title(f'Filter {i+1}', fontsize=10)
+
+plt.suptitle(f'First {n_filters} Filters from {layer_name}', 
+             fontsize=12, fontweight='bold')
+plt.tight_layout()
+plt.savefig('filter_weights.png', dpi=150, bbox_inches='tight')
+print("✓ Filter visualizations saved as 'filter_weights.png'")
+plt.close()
+
+# ===========================
+# SUMMARY
+# ===========================
+
+print("\n" + "="*50)
+print("VISUALIZATION COMPLETE!")
+print("="*50)
+print(f"Model: VGG16 (without top layers)")
+print(f"Layer analyzed: {layer_name}")
+print(f"Input image: {img_path}")
+print(f"\nOutput files:")
+print(f"  1. activation_maps.png - Feature map activations")
+print(f"  2. filter_weights.png - Learned filter weights")
+print("="*50)
+
+
+
+from IPython.display import Image; Image(filename='activation_maps.png')
+from IPython.display import Image; Image(filename='filter_weights.png')
+
+
+
+=============================================================================================================
+5)Comparing Classical vs. Deep Features: Extract SIFT, ORB features and compare with CNN feature embeddings for matching similar images in a dataset.(dog)
+
+# 1. Import necessary libraries
+import cv2
+import numpy as np
+import torch
+from sklearn.metrics.pairwise import cosine_similarity
+from torchvision import models, transforms
+from PIL import Image
+import matplotlib.pyplot as plt
+
+# 2. Load and preprocess images
+def load_image(image_path, target_size=(224, 224)):
+    """
+    Loads an image, resizes it to the target size, and converts it to grayscale.
+    """
+    img = cv2.imread(image_path)
+    img_resized = cv2.resize(img, target_size)  # Resize to target size
+    return cv2.cvtColor(img_resized, cv2.COLOR_BGR2GRAY), img_resized
+
+# 3. Extract Classical Features (SIFT and ORB)
+def extract_sift_features(image):
+    """
+    Extracts keypoints and descriptors using SIFT.
+    """
+    sift = cv2.SIFT_create()
+    keypoints, descriptors = sift.detectAndCompute(image, None)
+    return keypoints, descriptors
+
+def extract_orb_features(image):
+    """
+    Extracts keypoints and descriptors using ORB.
+    """
+    orb = cv2.ORB_create()
+    keypoints, descriptors = orb.detectAndCompute(image, None)
+    return keypoints, descriptors
+
+# 4. Extract Deep Learning Features (CNN Embeddings)
+def extract_cnn_embeddings(image_path):
+    """
+    Extracts feature embeddings from a pre-trained CNN (ResNet50).
+    """
+    # Load pre-trained model (ResNet50)
+    model = models.resnet50(pretrained=True)
+    model.eval()
+
+    # Preprocess the image for ResNet50
+    preprocess = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
+
+    # Load and preprocess image
+    image = Image.open(image_path)
+    image = preprocess(image).unsqueeze(0)
+
+    # Extract features from the second-to-last layer (penultimate layer)
+    with torch.no_grad():
+        features = model(image)
+    
+    return features.numpy().flatten()
+
+# 5. Compare Features
+def compare_sift_orb(descriptors1, descriptors2):
+    """
+    Compares two sets of descriptors (SIFT/ORB) using BFMatcher (Brute-Force Matcher).
+    """
+    bf = cv2.BFMatcher(cv2.NORM_L2, crossCheck=True)
+    matches = bf.match(descriptors1, descriptors2)
+    return matches
+
+def compare_cnn_embeddings(embedding1, embedding2):
+    """
+    Compares two CNN embeddings using cosine similarity.
+    """
+    return cosine_similarity([embedding1], [embedding2])
+
+# 6. Visualize Matches (for SIFT and ORB)
+def visualize_matches(image1, image2, keypoints1, keypoints2, matches, title="Feature Matches"):
+    """
+    Visualizes feature matches between two images.
+    """
+    img_matches = cv2.drawMatches(image1, keypoints1, image2, keypoints2, matches, None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+    plt.figure(figsize=(12, 6))
+    plt.imshow(img_matches)
+    plt.title(title)
+    plt.axis('off')
+    plt.show()
+
+# 7. Example usage with images
+image_path1 = 'dog1.jpg'  # Replace with your image path
+image_path2 = 'dog2.jpg'  # Replace with your image path
+
+# Resize target size
+target_size = (224, 224)
+
+# Load and resize images
+image1_gray, image1_resized = load_image(image_path1, target_size)
+image2_gray, image2_resized = load_image(image_path2, target_size)
+
+# Step 1: Extract classical features (SIFT and ORB)
+keypoints1_sift, descriptors1_sift = extract_sift_features(image1_gray)
+keypoints2_sift, descriptors2_sift = extract_sift_features(image2_gray)
+
+keypoints1_orb, descriptors1_orb = extract_orb_features(image1_gray)
+keypoints2_orb, descriptors2_orb = extract_orb_features(image2_gray)
+
+# Step 2: Extract deep learning features (CNN embeddings)
+embedding1_cnn = extract_cnn_embeddings(image_path1)
+embedding2_cnn = extract_cnn_embeddings(image_path2)
+
+# Step 3: Compare classical features (SIFT)
+matches_sift = compare_sift_orb(descriptors1_sift, descriptors2_sift)
+
+# Step 4: Compare classical features (ORB)
+matches_orb = compare_sift_orb(descriptors1_orb, descriptors2_orb)
+
+# Step 5: Compare deep features (CNN embeddings)
+similarity_cnn = compare_cnn_embeddings(embedding1_cnn, embedding2_cnn)
+
+# Step 6: Display the results
+print(f"SIFT matches: {len(matches_sift)}")
+print(f"ORB matches: {len(matches_orb)}")
+print(f"Cosine similarity (CNN embeddings): {similarity_cnn[0][0]:.4f}")
+
+# Visualize matches for SIFT
+visualize_matches(image1_resized, image2_resized, keypoints1_sift, keypoints2_sift, matches_sift, title="SIFT Matches")
+
+# Visualize matches for ORB
+visualize_matches(image1_resized, image2_resized, keypoints1_orb, keypoints2_orb, matches_orb, title="ORB Matches")
+
+
+==========================================================================================================================
+
+6)Transfer Learning for Image Classification: Use VGG16 or ResNet (pretrained) for fine-tuning on a custom image dataset (e.g., medical, fashion, plants). Compare feature extraction vs. fine-tuning.(cifar-10.npz)
+
+
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras.applications import VGG16
+from tensorflow.keras.models import Model, Sequential
+from tensorflow.keras.layers import Dense, Flatten, Dropout
+from tensorflow.keras.utils import to_categorical
+import os
+import gc
+import matplotlib.pyplot as plt
+
+print("="*60)
+print("CIFAR-10 Classification with VGG16 (Offline Mode) + Training Plots")
+print("="*60)
+
+# ===================================
+# CONFIGURATION
+# ===================================
+
+# File paths (adjust these to your actual file locations)
+WEIGHTS_PATH = 'vgg16_weights_tf_dim_ordering_tf_kernels_notop.h5'
+CIFAR_DATA_PATH = 'cifar-10.npz'  # must contain x_train,y_train,x_test,y_test
+
+# Training settings
+USE_REDUCED_DATASET = True  # Set to False to use full dataset
+TRAIN_SIZE = 10000 if USE_REDUCED_DATASET else 50000
+TEST_SIZE = 2000 if USE_REDUCED_DATASET else 10000
+EPOCHS = 5
+BATCH_SIZE = 64
+
+# ===================================
+# 1. LOAD CIFAR-10 DATASET
+# ===================================
+
+print(f"\n[1/7] Loading CIFAR-10 dataset from: {CIFAR_DATA_PATH}")
+
+if not os.path.exists(CIFAR_DATA_PATH):
+    print(f"✗ ERROR: Dataset file not found: {CIFAR_DATA_PATH}")
+    print("\nPlease download CIFAR-10 dataset and save as a .npz containing x_train,y_train,x_test,y_test")
+    raise SystemExit(1)
+
+try:
+    data = np.load(CIFAR_DATA_PATH)
+    x_train, y_train = data["x_train"], data["y_train"]
+    x_test, y_test = data["x_test"], data["y_test"]
+    print(f"✓ Dataset loaded successfully")
+    print(f"  Training samples: {x_train.shape[0]}")
+    print(f"  Test samples: {x_test.shape[0]}")
+    print(f"  Image shape: {x_train.shape[1:]}")
+except Exception as e:
+    print(f"✗ ERROR loading dataset: {e}")
+    raise SystemExit(1)
+
+# ===================================
+# 2. PREPROCESS DATA (memory-safe)
+# ===================================
+
+print("\n[2/7] Preprocessing data...")
+
+# If using a reduced dataset, slice first to keep memory usage low (do this BEFORE conversion to float)
+if USE_REDUCED_DATASET:
+    print(f"  Using reduced dataset: {TRAIN_SIZE} train, {TEST_SIZE} test samples")
+    x_train = x_train[:TRAIN_SIZE]
+    y_train = y_train[:TRAIN_SIZE]
+    x_test = x_test[:TEST_SIZE]
+    y_test = y_test[:TEST_SIZE]
+
+# Now convert to float32 and normalize in-place (reduces peak memory usage)
+x_train = x_train.astype("float32")
+x_test = x_test.astype("float32")
+x_train /= 255.0
+x_test /= 255.0
+
+# Convert grayscale to RGB if needed (CIFAR-10 is already RGB)
+if len(x_train.shape) == 3 or x_train.shape[-1] == 1:
+    print("  Converting grayscale to RGB...")
+    x_train = np.repeat(x_train[..., np.newaxis], 3, axis=-1) if len(x_train.shape) == 3 else x_train
+    x_test = np.repeat(x_test[..., np.newaxis], 3, axis=-1) if len(x_test.shape) == 3 else x_test
+
+# free the original loaded 'data' object if present to release memory
+try:
+    del data
+except NameError:
+    pass
+gc.collect()
+
+print(f"✓ Data preprocessed")
+print(f"  Final training shape: {x_train.shape}")
+print(f"  Final test shape: {x_test.shape}")
+
+# ===================================
+# 3. ONE-HOT ENCODE LABELS
+# ===================================
+
+print("\n[3/7] Encoding labels...")
+y_train = to_categorical(y_train, 10)
+y_test = to_categorical(y_test, 10)
+print(f"✓ Labels encoded to one-hot format")
+
+# ===================================
+# 4. LOAD PRETRAINED VGG16
+# ===================================
+
+print(f"\n[4/7] Loading VGG16 model...")
+
+try:
+    if os.path.exists(WEIGHTS_PATH):
+        # Load from local file (robust approach)
+        print(f"  Loading weights from: {WEIGHTS_PATH}")
+        base_model = VGG16(weights=None, include_top=False, input_shape=(32, 32, 3))
+        base_model.load_weights(WEIGHTS_PATH)
+        print(f"✓ VGG16 loaded from local file")
+    else:
+        # Try loading from Keras cache (or internet, if available)
+        print(f"  Weights file not found at: {WEIGHTS_PATH}")
+        print(f"  Trying Keras cache / imagenet weights...")
+        base_model = VGG16(weights='imagenet', include_top=False, input_shape=(32, 32, 3))
+        print(f"✓ VGG16 loaded from Keras cache / imagenet")
+except Exception as e:
+    print(f"✗ ERROR loading VGG16: {e}")
+    print("\nPlease ensure weights file is either in WEIGHTS_PATH or available in Keras cache.")
+    raise SystemExit(1)
+
+# Freeze base model for feature extraction
+base_model.trainable = False
+print(f"  Base model frozen for feature extraction")
+
+# ===================================
+# 5. BUILD CLASSIFICATION MODEL
+# ===================================
+
+print("\n[5/7] Building classification model...")
+
+model = Sequential([
+    base_model,
+    Flatten(),
+    Dense(256, activation="relu"),
+    Dropout(0.5),
+    Dense(10, activation="softmax")
+], name="CIFAR10_VGG16")
+
+model.compile(
+    optimizer="adam",
+    loss="categorical_crossentropy",
+    metrics=["accuracy"]
+)
+
+print(f"✓ Model built successfully")
+print(f"\nModel Summary:")
+print("-" * 60)
+model.summary()
+print("-" * 60)
+
+# ===================================
+# 6. TRAIN THE MODEL
+# ===================================
+
+print(f"\n[6/7] Training model...")
+print(f"  Epochs: {EPOCHS}")
+print(f"  Batch size: {BATCH_SIZE}")
+print(f"  Training samples: {len(x_train)}")
+print(f"  Validation samples: {len(x_test)}")
+print()
+
+history = model.fit(
+    x_train, y_train,
+    epochs=EPOCHS,
+    batch_size=BATCH_SIZE,
+    validation_data=(x_test, y_test),
+    verbose=1
+)
+
+print(f"\n✓ Training completed")
+
+# ===================================
+# 7. EVALUATE MODEL
+# ===================================
+
+print(f"\n[7/7] Evaluating model...")
+
+test_loss, test_acc = model.evaluate(x_test, y_test, verbose=0)
+
+print(f"\n{'='*60}")
+print(f"FINAL RESULTS")
+print(f"{'='*60}")
+print(f"Test Loss:     {test_loss:.4f}")
+print(f"Test Accuracy: {test_acc*100:.2f}%")
+print(f"{'='*60}")
+
+# ===================================
+# 8. SAVE MODEL (OPTIONAL)
+# ===================================
+
+model.save('cifar10_vgg16_model.h5')
+print(f"\n✓ Model saved as 'cifar10_vgg16_model.h5'")
+
+# Save training history (as numpy pickled object)
+np.save('training_history.npy', history.history)
+print(f"✓ Training history saved as 'training_history.npy'")
+
+# ===================================
+# 9. PLOT TRAINING GRAPHS (LOSS & ACC)
+# ===================================
+
+print("\n[9/9] Plotting training history...")
+
+# get history either from in-memory object or from saved file
+try:
+    hist = history.history
+except NameError:
+    # fallback if history not in memory
+    hist = np.load('training_history.npy', allow_pickle=True).item()
+
+loss = hist.get('loss', [])
+val_loss = hist.get('val_loss', [])
+acc = hist.get('accuracy', hist.get('acc', []))
+val_acc = hist.get('val_accuracy', hist.get('val_acc', []))
+epochs_range = range(1, len(loss) + 1)
+
+# Plot Loss
+plt.figure(figsize=(10,5))
+plt.plot(epochs_range, loss, 'b-', label='Training Loss')
+if val_loss:
+    plt.plot(epochs_range, val_loss, 'r--', label='Validation Loss')
+plt.xlabel("Epochs")
+plt.ylabel("Loss")
+plt.title("Training vs Validation Loss")
+plt.legend()
+plt.grid(True)
+plt.savefig("loss_curve.png", dpi=150, bbox_inches='tight')
+plt.show()
+
+# Plot Accuracy
+plt.figure(figsize=(10,5))
+if acc:
+    plt.plot(epochs_range, acc, 'b-', label='Training Accuracy')
+if val_acc:
+    plt.plot(epochs_range, val_acc, 'r--', label='Validation Accuracy')
+plt.xlabel("Epochs")
+plt.ylabel("Accuracy")
+plt.title("Training vs Validation Accuracy")
+plt.legend()
+plt.grid(True)
+plt.savefig("accuracy_curve.png", dpi=150, bbox_inches='tight')
+plt.show()
+
+# Combined subplot
+plt.figure(figsize=(12,5))
+plt.subplot(1,2,1)
+plt.plot(epochs_range, loss, 'b-', label='Train Loss')
+if val_loss:
+    plt.plot(epochs_range, val_loss, 'r--', label='Val Loss')
+plt.xlabel("Epochs"); plt.ylabel("Loss"); plt.title("Loss Curve"); plt.legend(); plt.grid(True)
+
+plt.subplot(1,2,2)
+if acc:
+    plt.plot(epochs_range, acc, 'b-', label='Train Acc')
+if val_acc:
+    plt.plot(epochs_range, val_acc, 'r--', label='Val Acc')
+plt.xlabel("Epochs"); plt.ylabel("Accuracy"); plt.title("Accuracy Curve"); plt.legend(); plt.grid(True)
+
+plt.tight_layout()
+plt.savefig("combined_training_plots.png", dpi=150, bbox_inches='tight')
+plt.show()
+
+# ===================================
+# CIFAR-10 CLASS NAMES
+# ===================================
+
+class_names = [
+    'airplane', 'automobile', 'bird', 'cat', 'deer',
+    'dog', 'frog', 'horse', 'ship', 'truck'
+]
+
+print(f"\nCIFAR-10 Classes:")
+for i, name in enumerate(class_names):
+    print(f"  {i}: {name}")
+
+print(f"\n{'='*60}")
+print(f"Training complete! Model ready for predictions.")
+print(f"{'='*60}")
+
+
+
+=======================================================================================================================================
+
+7)Contrastive Learning with SimCLR: Implement a basic SimCLR pipeline for self-supervised feature learning on a small dataset like STL-10. Visualize embeddings with t-SNE.(STL-10, resnet18)
+
+
+=========================================================================================================================================
+
+8)Object Detection using YOLOv5: Train a YOLOv5 model on a custom dataset (e.g., traffic signs, plant diseases). Evaluate using mAP and precision-recall curves.(dog image, data_custom.yaml, yolov5nu.pt, pip install ultralytics, datasets folder coco8, Arial.ttf)
+
+
+# -------------------------------
+# YOLOv5 Offline Train + Eval + Inference (Minimal)
+# -------------------------------
+
+from ultralytics import YOLO
+import matplotlib.pyplot as plt
+from IPython.display import Image, display
+
+# -------------------------------
+# Load pretrained YOLOv5n (local .pt file)
+# -------------------------------
+model = YOLO("yolov5nu.pt")   # local pretrained weights
+
+# -------------------------------
+# Train on custom dataset
+# -------------------------------
+model.train(
+    data="data_custom.yaml",
+    epochs=20,
+    imgsz=640,
+    batch=16,
+    name="yolov5_custom_run2"
+)
+
+# -------------------------------
+# Evaluate model (mAP)
+# -------------------------------
+metrics = model.val()
+print(metrics)
+
+# -------------------------------
+# Inference on an image
+# -------------------------------
+results = model("dog1.jpg")
+plt.imshow(results[0].plot())
+plt.axis("off")
+plt.show()
+
+# -------------------------------
+# Display PR curve & Training Curve
+# -------------------------------
+run = "runs/detect/yolov5_custom_run2"
+
+display(Image(filename=f"{run}/PR_curve.png"))
+display(Image(filename=f"{run}/results.png"))
+
+
+
+==================================================================================================
+
+9)Semantic Segmentation using U-Net: Implement and train a U-Net model on a dataset like Oxford-IIIT Pet or medical image segmentation. Visualize predicted masks.(cifar-100-python)
+
+# --------------------------------------------
+# CIFAR-100 Image Segmentation (Mask Prediction)
+# --------------------------------------------
+
+# Install required packages (uncomment if needed)
+# !pip install tensorflow numpy matplotlib
+
+import numpy as np
+import matplotlib.pyplot as plt
+import tensorflow as tf
+import pickle
+import os
+
+# -------------------------------
+# Load CIFAR-100 Dataset (Python version)
+# -------------------------------
+DATASET_PATH = "cifar-100-python"
+
+def load_batch(file):
+    with open(os.path.join(DATASET_PATH, file), 'rb') as f:
+        data = pickle.load(f, encoding='bytes')
+    images = data[b'data'].reshape(-1, 3, 32, 32).transpose(0, 2, 3, 1)
+    return images.astype("float32")
+
+x_train = load_batch("train")
+x_test = load_batch("test")
+
+print("Train images:", x_train.shape)
+print("Test images:", x_test.shape)
+
+# -------------------------------
+# Create Simple Binary Mask (Threshold on grayscale)
+# -------------------------------
+def create_mask(img):
+    img_gray = np.mean(img, axis=-1)          # Convert to grayscale
+    mask = (img_gray > img_gray.mean()).astype("float32")
+    return mask
+
+y_train = np.array([create_mask(i) for i in x_train])
+y_test  = np.array([create_mask(i) for i in x_test])
+
+print("Mask shape BEFORE channel:", y_train.shape)
+
+# -------------------------------
+# Normalize + Add Mask Channel
+# -------------------------------
+def preprocess(images, masks):
+    images = images / 255.0
+    masks = masks[..., None]                  # (32,32,1)
+    return images.astype("float32"), masks.astype("float32")
+
+x_train_p, y_train_p = preprocess(x_train, y_train)
+x_test_p, y_test_p = preprocess(x_test, y_test)
+
+print("Images:", x_train_p.shape)
+print("Masks:", y_train_p.shape)
+
+# -------------------------------
+# FAST MODE (reduce dataset for speed)
+# -------------------------------
+x_train_fast = x_train_p[:1000]
+y_train_fast = y_train_p[:1000]
+
+x_test_fast = x_test_p[:200]
+y_test_fast = y_test_p[:200]
+
+print("Train fast shapes:", x_train_fast.shape, y_train_fast.shape)
+print("Test fast shapes:", x_test_fast.shape, y_test_fast.shape)
+
+# -------------------------------
+# Simple Segmentation Model (Mini-U-Net style)
+# -------------------------------
+from tensorflow.keras import layers, Model
+
+inputs = layers.Input((32, 32, 3))
+
+c1 = layers.Conv2D(16, 3, activation='relu', padding='same')(inputs)
+p1 = layers.MaxPooling2D()(c1)
+
+c2 = layers.Conv2D(32, 3, activation='relu', padding='same')(p1)
+
+u1 = layers.UpSampling2D()(c2)
+c3 = layers.Conv2D(16, 3, activation='relu', padding='same')(u1)
+
+output = layers.Conv2D(1, 1, activation='sigmoid')(c3)
+
+model = Model(inputs, output)
+model.summary()
+
+# -------------------------------
+# Compile & Train
+# -------------------------------
+model.compile(
+    optimizer="adam",
+    loss="binary_crossentropy",
+    metrics=["accuracy"]
+)
+
+history = model.fit(
+    x_train_fast, y_train_fast,
+    validation_data=(x_test_fast, y_test_fast),
+    epochs=3,
+    batch_size=8,
+    verbose=1
+)
+
+# -------------------------------
+# Prediction + Visualization
+# -------------------------------
+def show(i):
+    img = x_test_fast[i]
+    true = y_test_fast[i].squeeze()
+    pred = model.predict(img[np.newaxis])[0].squeeze()
+
+    plt.figure(figsize=(10,3))
+    plt.subplot(1,3,1); plt.imshow(img); plt.axis("off"); plt.title("Image")
+    plt.subplot(1,3,2); plt.imshow(true, cmap="gray"); plt.axis("off"); plt.title("True Mask")
+    plt.subplot(1,3,3); plt.imshow(pred > 0.5, cmap="gray"); plt.axis("off"); plt.title("Pred Mask")
+    plt.show()
+
+# Show example output
+show(5)
+
+
+=======================================================================================================================
+
+10)Instance Segmentation with Mask R-CNN: Use Detectron2 or Torchvision’s Mask R-CNN to perform instance-level segmentation on the COCO or custom dataset.(PennFudanPed, maskrc)
+
+# ---------------------------
+# Instance Segmentation with Mask R-CNN (Torchvision)
+# Using first 60 images only
+# ---------------------------
+
+import torch
+import torchvision
+from torchvision.models.detection import maskrcnn_resnet50_fpn
+from torchvision.transforms import functional as F
+from torch.utils.data import Dataset, DataLoader
+from PIL import Image
+import matplotlib.pyplot as plt
+import numpy as np
+import os
+
+# ---------------------------
+# 1. Dataset class for folder of images
+# ---------------------------
+class ImageFolderDataset(Dataset):
+    def __init__(self, folder_path, transforms=None, max_images=None):
+        self.folder_path = folder_path
+        self.transforms = transforms
+        img_paths = [os.path.join(folder_path, f) 
+                     for f in os.listdir(folder_path) 
+                     if f.endswith(".png") or f.endswith(".jpg")]
+        # Limit to first max_images if specified
+        if max_images:
+            img_paths = img_paths[:max_images]
+        self.img_paths = img_paths
+
+    def __len__(self):
+        return len(self.img_paths)
+
+    def __getitem__(self, idx):
+        img_path = self.img_paths[idx]
+        img = Image.open(img_path).convert("RGB")
+        if self.transforms:
+            img = self.transforms(img)
+        img_tensor = F.to_tensor(img)
+        return img_tensor, img_path
+
+# ---------------------------
+# 2. Update this path to your dataset folder
+# ---------------------------
+DATA_DIR = "PennFudanPed"                       # <<< YOUR REQUEST
+dataset_folder = os.path.join(DATA_DIR, "PNGImages")  
+dataset = ImageFolderDataset(dataset_folder, max_images=15)  
+data_loader = DataLoader(dataset, batch_size=1, shuffle=False)
+
+# ---------------------------
+# 3. Load pre-trained Mask R-CNN
+# ---------------------------
+device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+model = maskrcnn_resnet50_fpn(
+    weights=torchvision.models.detection.MaskRCNN_ResNet50_FPN_Weights.DEFAULT
+)
+model.to(device)
+model.eval()  # inference mode
+
+# ---------------------------
+# 4. Run inference + visualization
+# ---------------------------
+for imgs, paths in data_loader:
+    img = imgs[0].to(device)
+    with torch.no_grad():
+        prediction = model([img])
+
+    img_np = img.mul(255).permute(1, 2, 0).byte().cpu().numpy()
+    masks = prediction[0]["masks"].cpu().numpy()
+    boxes = prediction[0]["boxes"].cpu().numpy()
+    scores = prediction[0]["scores"].cpu().numpy()
+    labels = prediction[0]["labels"].cpu().numpy()
+
+    plt.figure(figsize=(10, 10))
+    plt.imshow(img_np)
+    for i in range(len(masks)):
+        if scores[i] > 0.5:  # show high-confidence predictions
+            mask = masks[i, 0]
+            plt.imshow(mask, alpha=0.5)
+            x1, y1, x2, y2 = boxes[i]
+            plt.gca().add_patch(
+                plt.Rectangle((x1, y1), x2-x1, y2-y1, fill=False, color='red', linewidth=2)
+            )
+    plt.axis("off")
+    plt.title(os.path.basename(paths[0]))
+    plt.show()
+
+
+
+
+===========================================================================================================================
+
+12)Video Action Recognition using I3D: Implement or use a pretrained I3D or SlowFast model to classify actions in videos (e.g., UCF101). Analyze temporal features.(4 video clips (run,walk,wave,jump), tiny_i3d.pth, mini_i3d.pth, pip install av)
+
+import os
+import math
+import random
+from pathlib import Path
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader
+
+import cv2
+import numpy as np
+
+# ------------------------------
+# CONFIG
+# ------------------------------
+VIDEO_DIR = "videos"     # folder where you put your 4 videos
+NUM_FRAMES = 16          # frames per clip
+BATCH_SIZE = 2
+EPOCHS = 4
+LR = 1e-3
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+SEED = 42
+
+random.seed(SEED)
+torch.manual_seed(SEED)
+
+# ------------------------------
+# DATASET HELPERS
+# ------------------------------
+def extract_class_from_name(path: str) -> str:
+    """Infer class label from filename prefix before first non-letter."""
+    stem = Path(path).stem.lower()
+    cls = ""
+    for ch in stem:
+        if ch.isalpha():
+            cls += ch
+        else:
+            break
+    return cls or stem  # fallback
+
+
+def sample_indices(num_total, num_frames):
+    if num_total <= 0:
+        return [0] * num_frames
+    if num_total <= num_frames:
+        idxs = list(range(num_total))
+        while len(idxs) < num_frames:
+            idxs.append(num_total - 1)
+        return idxs
+    step = num_total / float(num_frames)
+    return [min(num_total - 1, int(i * step)) for i in range(num_frames)]
+
+
+def read_video_cv2(path):
+    """Reads video using OpenCV → returns (T,H,W,C) uint8 RGB."""
+    cap = cv2.VideoCapture(path)
+    frames = []
+    while True:
+        ok, frame = cap.read()
+        if not ok:
+            break
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        frames.append(frame)
+    cap.release()
+    return np.array(frames, dtype=np.uint8)
+
+
+# ------------------------------
+# DATASET
+# ------------------------------
+class VideoActionDataset(Dataset):
+    def __init__(self, root, num_frames=16):
+        self.samples = []
+        for p in sorted(Path(root).glob("*")):
+            if p.suffix.lower() in [".mp4", ".avi", ".mov", ".mkv"]:
+                self.samples.append(str(p))
+
+        if len(self.samples) == 0:
+            raise RuntimeError(f"No videos found in {root}")
+
+        labels = [extract_class_from_name(p) for p in self.samples]
+        classes = sorted(set(labels))
+        self.class_to_idx = {c: i for i, c in enumerate(classes)}
+        self.idx_to_class = {i: c for c, i in self.class_to_idx.items()}
+        self.labels = [self.class_to_idx[l] for l in labels]
+        self.num_frames = num_frames
+
+        print("Found videos:")
+        for p, lbl in zip(self.samples, self.labels):
+            print(f"  {p} -> class '{self.idx_to_class[lbl]}'")
+        print("Classes:", self.class_to_idx)
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        path = self.samples[idx]
+        label = self.labels[idx]
+
+        # --- Load video using OpenCV ---
+        video = read_video_cv2(path)  # (T,H,W,C)
+        T_total = video.shape[0]
+
+        # uniform sampling
+        idxs = sample_indices(T_total, self.num_frames)
+        clip = video[idxs]  # (T,H,W,C)
+
+        # to torch tensor
+        clip = torch.from_numpy(clip).float() / 255.0
+        clip = clip.permute(3, 0, 1, 2)  # (C,T,H,W)
+
+        return clip, label
+
+
+# ------------------------------
+# MODEL: Tiny I3D-style 3D CNN
+# ------------------------------
+class MiniI3D(nn.Module):
+    def __init__(self, in_ch=3, num_classes=2):
+        super().__init__()
+        self.conv1 = nn.Conv3d(in_ch, 16, 3, padding=1)
+        self.pool1 = nn.MaxPool3d((1,2,2))
+        self.conv2 = nn.Conv3d(16, 32, 3, padding=1)
+        self.pool2 = nn.MaxPool3d((2,2,2))
+        self.conv3 = nn.Conv3d(32, 64, 3, padding=1)
+        self.pool3 = nn.AdaptiveAvgPool3d((1,1,1))
+        self.fc = nn.Linear(64, num_classes)
+
+    def forward(self, x):
+        # x: (B,C,T,H,W)
+        x = F.relu(self.conv1(x))
+        x = self.pool1(x)
+        x = F.relu(self.conv2(x))
+        x = self.pool2(x)
+        x = F.relu(self.conv3(x))
+        x = self.pool3(x)
+        x = x.view(x.size(0), -1)
+        return self.fc(x)
+
+
+# ------------------------------
+# LOAD DATA
+# ------------------------------
+dataset = VideoActionDataset(VIDEO_DIR, num_frames=NUM_FRAMES)
+
+indices = list(range(len(dataset)))
+random.shuffle(indices)
+split = max(1, int(0.75 * len(indices)))
+train_idx = indices[:split]
+val_idx   = indices[split:]
+
+train_ds = torch.utils.data.Subset(dataset, train_idx)
+val_ds   = torch.utils.data.Subset(dataset, val_idx)
+
+train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True)
+val_loader   = DataLoader(val_ds, batch_size=1, shuffle=False)
+
+num_classes = len(dataset.class_to_idx)
+model = MiniI3D(in_ch=3, num_classes=num_classes).to(DEVICE)
+optimizer = torch.optim.Adam(model.parameters(), lr=LR)
+criterion = nn.CrossEntropyLoss()
+
+print(f"\nUsing device: {DEVICE}")
+print(f"Num classes: {num_classes}, Train samples: {len(train_ds)}, Val samples: {len(val_ds)}")
+
+
+# ------------------------------
+# TRAINING LOOP
+# ------------------------------
+def run_epoch(loader, training=True):
+    if training:
+        model.train()
+    else:
+        model.eval()
+    total_loss, total_correct, total_count = 0.0, 0, 0
+
+    for clips, labels in loader:
+        clips = clips.to(DEVICE)
+        labels = labels.to(DEVICE)
+
+        if training:
+            optimizer.zero_grad()
+
+        logits = model(clips)
+        loss = criterion(logits, labels)
+
+        if training:
+            loss.backward()
+            optimizer.step()
+
+        total_loss += loss.item() * clips.size(0)
+        preds = logits.argmax(1)
+        total_correct += (preds == labels).sum().item()
+        total_count += clips.size(0)
+
+    return total_loss / max(1,total_count), total_correct / max(1,total_count)
+
+
+for epoch in range(1, EPOCHS+1):
+    train_loss, train_acc = run_epoch(train_loader, training=True)
+    val_loss, val_acc = run_epoch(val_loader, training=False)
+    print(f"Epoch {epoch:02d} | train_loss={train_loss:.4f} acc={train_acc:.3f} | "
+          f"val_loss={val_loss:.4f} acc={val_acc:.3f}")
+
+
+# ------------------------------
+# TEMPORAL FEATURE ANALYSIS (Grad-CAM style)
+# ------------------------------
+def temporal_saliency(model, clip, target_class=None):
+    """
+    clip: (1,C,T,H,W)
+    returns: saliency list for each frame
+    """
+    model.eval()
+    clip = clip.to(DEVICE).requires_grad_(True)
+
+    conv_layer = model.conv2
+    activations = {}
+    gradients = {}
+
+    def fwd_hook(m, inp, out):
+        activations["value"] = out
+
+    def bwd_hook(m, gin, gout):
+        gradients["value"] = gout[0]
+
+    h1 = conv_layer.register_forward_hook(fwd_hook)
+    h2 = conv_layer.register_backward_hook(bwd_hook)
+
+    logits = model(clip)
+    if target_class is None:
+        target = logits.argmax(1).item()
+    else:
+        target = target_class
+
+    score = logits[0, target]
+    model.zero_grad()
+    score.backward()
+
+    act = activations["value"][0]   # (C,T,H,W)
+    grad = gradients["value"][0]    # (C,T,H,W)
+
+    # average gradient over spatial dims -> (C,T)
+    weights = grad.mean(dim=(2, 3))
+
+    # weighted sum across channels -> (T,H,W)
+    weighted = (weights.unsqueeze(2).unsqueeze(3) * act).sum(dim=0)
+    saliency = weighted.mean(dim=(1,2))  # (T,)
+
+    saliency = saliency - saliency.min()
+    if saliency.max() > 0:
+        saliency = saliency / saliency.max()
+
+    h1.remove()
+    h2.remove()
+
+    return saliency.detach().cpu().tolist(), target
+
+
+# ------------------------------
+# RUN SALIENCY ON ONE SAMPLE
+# ------------------------------
+if len(val_ds) > 0:
+    clip, lbl = val_ds[0]
+    clip_batch = clip.unsqueeze(0)  # (1,C,T,H,W)
+    sal, pred_cls = temporal_saliency(model, clip_batch)
+
+    print("\nTemporal saliency (0..1 for each frame):")
+    print(sal)
+    print("Ground truth:", dataset.idx_to_class[int(lbl)])
+    print("Predicted   :", dataset.idx_to_class[int(pred_cls)])
+
+    top_k = sorted(range(len(sal)), key=lambda i: sal[i], reverse=True)[:3]
+    print("Most important frame indices:", top_k)
+else:
+    print("No validation sample to analyze temporal features.")
+
+
+
+
+================================================================================================================
+
+13)Deploying a Vision Model on Edge (Jetson Nano or ONNX): Convert a trained model (YOLO or MobileNet) to ONNX or TensorRT and deploy it on an edge device. Measure FPS and inference time.(pip install torch, torchvision, onxxscript, onxxruntime)
+//cp v2.onnx v1.onnx
+//rm -rf v2.onnx
+//mv v1.onnx v2.onnx
+
+
+import os
+import time
+import numpy as np
+import torch
+import torchvision
+import torchvision.transforms as T
+from torchvision.models import mobilenet_v2
+import onnxruntime as ort
+import cv2
+
+print("PyTorch:", torch.__version__)
+print("Torchvision:", torchvision.__version__)
+print("CUDA available:", torch.cuda.is_available())
+
+# -------------------------------
+# Load local MobileNetV2 weights
+# -------------------------------
+weights_path = "mobilenet_v2-7ebf99e0.pth"
+assert os.path.exists(weights_path), f"Weights file not found: {weights_path}"
+
+model = mobilenet_v2(weights=None)
+state_dict = torch.load(weights_path, map_location="cpu")
+model.load_state_dict(state_dict)
+model.eval()
+print("✓ MobileNetV2 loaded from local weights.")
+
+# -------------------------------
+# Preprocessing
+# -------------------------------
+IMAGENET_MEAN = [0.485, 0.456, 0.406]
+IMAGENET_STD  = [0.229, 0.224, 0.225]
+
+preprocess = T.Compose([
+    T.ToPILImage(),
+    T.Resize((224, 224)),
+    T.ToTensor(),
+    T.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+])
+print("✓ Preprocessing pipeline ready.")
+
+# -------------------------------
+# Load ONNX model
+# -------------------------------
+print("ONNX Runtime:", ort.__version__)
+print("OpenCV:", cv2.__version__)
+
+onnx_model_path = "mobilenet_v2.onnx"
+assert os.path.exists(onnx_model_path), f"ONNX model not found: {onnx_model_path}"
+
+session = ort.InferenceSession(
+    onnx_model_path,
+    providers=["CPUExecutionProvider"]
+)
+
+input_name = session.get_inputs()[0].name
+output_name = session.get_outputs()[0].name
+
+print("✓ ONNX session created.")
+print("Input name :", input_name)
+print("Output name:", output_name)
+
+# -------------------------------
+# Benchmark inference
+# -------------------------------
+dummy_img = np.random.randint(0, 255, (224, 224, 3), dtype=np.uint8)
+img_tensor = preprocess(dummy_img)
+img_np = img_tensor.unsqueeze(0).numpy()
+
+n_runs = 50
+start = time.perf_counter()
+for _ in range(n_runs):
+    _ = session.run([output_name], {input_name: img_np})
+end = time.perf_counter()
+
+avg_time = (end - start) / n_runs
+fps = 1.0 / avg_time
+
+print(f"Average inference time: {avg_time*1000:.2f} ms")
+print(f"Estimated FPS (single image): {fps:.2f}")
+
+
+
+======================================================================================================================
+
+14)Image Generation using Stable Diffusion: Use Hugging Face’s Diffusers library or InvokeAI to generate images from text prompts. Modify prompts and analyze model creativity and limitations(pip install diffusers accelerate, sd-turbo-local, pip install transformers -U )
+
+
+
+#!/usr/bin/env python3
+
+import os
+os.environ["HF_HUB_OFFLINE"] = "1"   # Force offline mode
+
+import torch
+from diffusers import AutoPipelineForText2Image
+from PIL import Image
+import matplotlib.pyplot as plt
+
+def main():
+    print("PyTorch:", torch.__version__)
+    print("CUDA available:", torch.cuda.is_available())
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print("Using device:", device)
+
+    model_path = "./sd-turbo-local"   # local model folder
+
+    if not os.path.isdir(model_path):
+        raise FileNotFoundError(
+            f"Local model folder not found: {model_path}\n"
+            "Please place the sd-turbo pipeline folder here or set `model_path` to the correct location."
+        )
+    print("✓ Found local model folder:", model_path)
+
+    torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+
+    print("Loading pipeline from local files (offline)...")
+    pipe = AutoPipelineForText2Image.from_pretrained(
+        model_path,
+        torch_dtype=torch_dtype,
+        local_files_only=True,
+    )
+
+    pipe = pipe.to(device)
+
+    if device == "cuda":
+        try:
+            pipe.enable_attention_slicing()
+        except:
+            pass
+
+    print("✓ Text-to-image pipeline loaded from local disk.")
+
+    # ---------------------------------------------------
+    # Image generation helper
+    # ---------------------------------------------------
+    def generate_image(prompt, num_inference_steps=4, guidance_scale=0.0, seed=42, out_file=None):
+        gen = torch.Generator(device=device).manual_seed(seed)
+
+        print(f"\nPrompt: {prompt}")
+        result = pipe(
+            prompt=prompt,
+            num_inference_steps=num_inference_steps,
+            guidance_scale=guidance_scale,
+            generator=gen,
+        )
+
+        img = result.images[0]
+
+        plt.figure(figsize=(6, 6))
+        plt.imshow(img)
+        plt.axis("off")
+        plt.title(prompt[:80], fontsize=10)
+        plt.show()
+
+        if out_file:
+            img.save(out_file)
+            print("Saved image to:", out_file)
+
+        return img
+
+    # ---------------------------------------------------
+    # Example prompt (you can change this)
+    # ---------------------------------------------------
+    prompt_basic = (
+        "a giant ancient temple floating in the clouds, golden sunlight, "
+        "mystical energy, fantasy landscape, breathtaking atmosphere"
+    )
+
+    out = generate_image(prompt_basic, num_inference_steps=4, guidance_scale=0.0, seed=1, out_file="sd_turbo_output.png")
+    print("Done.")
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+
+
